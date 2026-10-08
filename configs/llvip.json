@@ -1,0 +1,5 @@
+{
+  "weights": "weights/llvip/best_checkpoint.pth",
+  "prompt_path": "prompts/LLVIP_TEST_Prompts_Instructional.json",
+  "default_text": "infrared and visible image fusion"
+}

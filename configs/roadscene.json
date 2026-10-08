@@ -1,0 +1,5 @@
+{
+  "weights": "weights/roadscene/latest_model.pth",
+  "prompt_path": null,
+  "default_text": "a clear road scene fusion"
+}

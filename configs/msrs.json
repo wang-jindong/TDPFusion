@@ -1,0 +1,5 @@
+{
+  "weights": "weights/msrs/best_checkpoint.pth",
+  "prompt_path": "prompts/msr_test_prompt.json",
+  "default_text": "infrared and visible image fusion"
+}
