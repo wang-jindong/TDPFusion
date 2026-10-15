@@ -18,9 +18,12 @@ def parse_args():
     parser.add_argument('--prompt-path', type=Path)
     parser.add_argument('--prompt-mode', choices=['file', 'fixed'])
     parser.add_argument('--gpu-id', type=int, default=0)
-    parser.add_argument('--save-mask', action='store_true', help='MSRS only.')
+    parser.add_argument('--save-mask', action=argparse.BooleanOptionalAction, default=None,
+                        help='MSRS only; saved by default, as in the source script.')
     parser.add_argument('--check', action='store_true', help='Check required paths without loading the model.')
     args = parser.parse_args()
+    if args.save_mask is None:
+        args.save_mask = args.dataset == 'msrs'
     config = json.loads((ROOT / 'configs' / f'{args.dataset}.json').read_text(encoding='utf-8'))
     data, output = args.data_root.resolve(), args.output.resolve()
     args.weights = str((args.weights or ROOT / config['weights']).resolve())

@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from torchvision import transforms
 from PIL import Image
 from tqdm import tqdm
-from inference.common import load_tokenizer
+from transformers import CLIPTokenizer
 
 # 导入你的模型
 from model.Text_IF_model import Text_IF
@@ -52,7 +52,12 @@ def main(args):
         print(f"⚠️ Prompt path not found: {args.prompt_path}. Will use default text.")
 
     # 3. 初始化 CLIP Tokenizer
-    tokenizer = load_tokenizer(args.clip_path)
+    try:
+        tokenizer = CLIPTokenizer.from_pretrained(args.clip_path)
+        print("✅ Local CLIP tokenizer loaded.")
+    except:
+        tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")
+        print("⚠️ Online CLIP tokenizer loaded.")
 
     # 4. 初始化模型并加载权重
     print("Loading Text_IF model...")
@@ -129,5 +134,3 @@ def main(args):
         Image.fromarray(fused_img_np).save(save_file_path)
 
     print(f"�� All done! Results saved to: {args.save_path}")
-
-

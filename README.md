@@ -7,8 +7,9 @@ for each dataset.
 Repository: [wang-jindong/TDPFusion](https://github.com/wang-jindong/TDPFusion).
 
 **Release status:** source code is available; pretrained checkpoint download links
-are pending. The training entry point is a reconstructed reference implementation,
-not a verified reproduction of the released model weights. See
+are pending. The training entry point organizes the existing dataset-specific
+scripts without changing their training computations. Their historical connection
+to the released model weights is not fully verified. See
 [TRAINING.md](TRAINING.md) for its scope and limitations.
 
 ## Installation
@@ -67,7 +68,9 @@ python -X utf8 infer.py --dataset roadscene --data-root /path/to/RoadScene --out
 Output directories must be new or empty. Add `--check` to check required paths
 without loading the model. Optional arguments include `--weights`,
 `--clip-path`, `--prompt-path`, `--prompt-mode fixed`, and `--gpu-id`.
-MSRS supports `--save-mask` for saving auxiliary masks.
+MSRS saves auxiliary masks by default, as in the source script; use
+`--no-save-mask` to omit them. RoadScene retains the source's default CUDA device;
+select a physical GPU with `CUDA_VISIBLE_DEVICES` before starting Python.
 
 ### Dataset settings
 
@@ -93,8 +96,8 @@ not claim a single checkpoint for all three datasets.
 
 ```text
 infer.py          Inference entry point
-train.py          Reconstructed training entry point (draft)
-training/         Training data and Chapter 3 objective
+train.py          Launcher for the existing dataset-specific trainers
+training/         Preserved training loops, datasets, losses and scheduler
 model/            Fusion network and text encoder
 inference/        Dataset-specific image processing and inference
 configs/          Checkpoint paths and text defaults
@@ -103,11 +106,12 @@ weights/          Local fusion checkpoints (ignored by Git)
 clip_weights/     Local CLIP assets (ignored by Git)
 ```
 
-The original pretrained inference workflow is preserved. A minimal training
-draft reconstructed from thesis Chapter 3 is provided in `train.py` and
-`training/`; see [TRAINING.md](TRAINING.md) for commands, required resources,
-implementation choices and validation limits. It is not a recovered historical
-training implementation and is not verified to reproduce the released weights.
+The original pretrained inference workflow is preserved. The training code in
+`train.py` and `training/` is organized from the existing source scripts; see
+[TRAINING.md](TRAINING.md) for commands, source mapping, preserved behavior and
+historical provenance limits. The previous thesis-based reconstruction has been
+removed. The RoadScene trainer is an existing candidate and is not confirmed as
+the historical source of the released RoadScene weights.
 Experimental snapshots and local investigation records remain outside the release.
 
 ## Attribution

@@ -7,6 +7,7 @@ clip_weights/
 data/
 results/
 runs/
+experiments/
 verification/
 *.pth
 *.pt

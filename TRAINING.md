@@ -1,134 +1,122 @@
-# Minimal training implementation (reconstructed)
+# Training from the existing source
 
-`train.py` reconstructs the training objective and settings described in Chapter 3
-of the source thesis. It is **not a recovered copy of the historical training
-program**, and has not been shown to reproduce the released checkpoints or paper
-metrics. The supplied experiment logs record 70 epochs; the thesis specifies 100.
-The RoadScene historical training source could not be recovered from the supplied
-files, and neither server project has a Git repository.
+The training code is an organization of the supplied, currently existing code.
+The previous Chapter 3 reconstruction has been removed. No loss, gradient path,
+sampling rule, augmentation, optimizer schedule or checkpoint selection rule is
+reimplemented from the thesis. This does not establish that the existing scripts
+are the historical versions which produced the released weights.
 
-This entry point is a training draft pending validation on confirmed training
-splits and confirmation of the preprocessing and implementation choices below.
-It reuses the unchanged released network, including its supplied SSGA fallback.
+## Source mapping
 
-## Data and resources
+| Release file | Existing source |
+| --- | --- |
+| `training/msrs.py` | `train_fusion.py` |
+| `training/llvip.py` | `train_fusion_llvip.py` |
+| `training/roadscene.py` | `trian_fusion_roadscene.py` from textif3 |
+| `training/patent_dataset.py` | `patent_dataset.py` |
+| `training/roadscene_dataset.py` | `roadscene_dataset.py` |
+| `training/losses.py` | `scripts/patent_loss.py` |
+| `training/semantic_loss.py` | `scripts/semantic_loss.py` |
+| `training/utils.py` | Only `setup_seed` and `create_lr_scheduler`, copied from `scripts/utils.py` |
 
-Use a training pool with aligned pairs; exclude all held-out test images:
+Training loop bodies, loss calculations and dataset operations are preserved.
+Changes are limited to module imports, configurable resource/output paths and
+extracting the original argument parsers for a shared launcher. The model's only
+source change is its configurable CLIP path. Original tokenizer/model fallback
+behavior is retained. Supply the same CLIP assets for comparable results.
 
-```text
-training_pool/
-  ir/00001.png
-  vi/00001.png
-  mask/00001.png    # MSRS only: class IDs 0..8, ignore index 255
-```
+The server copies of the three textif3 trainers match the local originals apart
+from line endings. Historical loss/data dependency snapshots are not established.
+In particular, the RoadScene source writes `RoadScene_FullFixed_*` runs; it has
+not been established as the source of the released `RoadScene_Semantic_*` weights.
+The alternative textif4 trainer is not substituted or combined with it.
 
-IR and VIS filenames must match. Labels use the same stem with `.png` and must
-contain class indices, not RGB visualization colors. MSRS needs labels for both
-training and validation. LLVIP and RoadScene do not use labels or a Judge in this
-implementation, following Chapter 3.
+## Required resources and commands
 
-Different IR/VIS dimensions are rejected by default. If the intended preprocessing
-resizes both modalities independently, explicitly add `--resize-mismatched-pairs`.
-This resizes each image to `--image-size` and records the choice in `config.json`;
-it does not estimate geometric registration. A successful smoke run with this
-option is not evidence that the original pairs are registered correctly or that
-the historical training pipeline has been recovered.
-
-Provide a JSON mapping image stems/filenames to scene-specific text, or a list:
-
-```json
-[{"file_name": "00001.png", "text": "Preserve visible road textures and highlight infrared pedestrians."}]
-```
-
-Every selected pair needs a prompt; missing prompts are errors. The included
-20-image inference prompt files are not full training annotations. Supply the
-actual training text data. LLaVA generation and cleaning are not implemented here;
-the generator version, prompting procedure and complete annotations still need
-to be supplied for reproducing that data-preparation stage.
-
-The local `clip_weights/` must contain the full CLIP ViT-B/32 model (visual and text
-encoders), not only text weights. MSRS additionally requires the pretrained
-9-class DeepLabV3-ResNet50 Judge with auxiliary classifier. Its download link and
-training provenance still need to be provided. Model weights load locally without
-silently downloading or substituting pretrained assets.
-
-## Commands
-
-Run from the repository root with the same dependencies as inference:
+Run from the repository root. Install `requirements.txt`, including TensorBoard.
+Supply paired training IR/VIS images, the source-format masks/pseudo-labels,
+training prompt JSON, full CLIP ViT-B/32 weights and the appropriate pretrained
+Judge. MSRS/RoadScene use the 9-class Judge; LLVIP uses the 2-class Judge. These
+Judge checkpoints are separate from the released fusion checkpoints. Their public
+download links and provenance are still pending.
 
 ```bash
-python train.py --dataset msrs --data-root /data/MSRS_train --prompt-path /data/MSRS_train/prompts.json --mask-dir /data/MSRS_train/mask --judge-weights /models/best_judge.pth --output runs/msrs
-python train.py --dataset llvip --data-root /data/LLVIP_train --prompt-path /data/LLVIP_train/prompts.json --output runs/llvip
-python train.py --dataset roadscene --data-root /data/RoadScene_train --prompt-path /data/RoadScene_train/prompts.json --output runs/roadscene
+python -X utf8 train.py --dataset msrs --ir_path /data/MSRS_train/ir --vis_path /data/MSRS_train/vi --mask_path /data/MSRS_train/Label --prompt_path /data/MSRS_train/prompts.json --judge_weights /models/best_judge.pth --clip-path /models/clip_weights
+python -X utf8 train.py --dataset llvip --ir_path /data/LLVIP_train/ir --vis_path /data/LLVIP_train/vi --mask_path /data/LLVIP_train/masks/train --judge_weights /models/best_judge_llvip.pth --clip-path /models/clip_weights
+python -X utf8 train.py --dataset roadscene --ir_path /data/RoadScene_train/ir --vis_path /data/RoadScene_train/vi --mask_path /data/RoadScene_train/masks/pseudo_labels --prompt_path /data/RoadScene_train/road_train_prompt.json --judge_weights /models/best_judge.pth --clip-path /models/clip_weights
 ```
 
-Add `--check` to read all selected images and validate prompt/label coverage without
-loading fusion, CLIP model or Judge weights. It loads only the CLIP tokenizer.
-Use `--epochs 1 --max-batches 1` for a limited training/validation smoke run in a
-separate output directory. A CPU smoke check can additionally use `--device cpu
---image-size 32`; this is not an experimental training configuration.
+Use `python train.py --dataset NAME --help` for the original dataset-specific
+options. `--output-root` changes only the parent of the original timestamped
+experiment folders (default `./experiments`). RoadScene retains its optional
+`--pretrained_weights` argument; its default is empty. Relative paths are resolved
+from the working directory. No training split or sample is downloaded or generated.
 
-Default settings: image size 256, AdamW, learning rate 1e-4, weight decay 1e-4,
-100 epochs, batch size 2, gradient accumulation 8, seed 42. The final accumulation
-window is normalized by its actual sample count. Each dataset is trained
-independently; fusion parameters start from random initialization, with frozen
-pretrained CLIP. There is no implicit initialization from released fusion weights.
+The removed reconstruction's `--data-root`, `--split-file`, `--image-size`,
+`--resize-mismatched-pairs`, `--max-batches`, `--check` and `--output` options do not
+apply. The original trainers use size 256 and four DataLoader workers. Use the
+actual training pool; do not substitute held-out test data.
 
-The default split sorts filenames and takes the first 90% for training, the rest
-for validation. For a known split, pass `--split-file split.json` containing
-`{"train": ["00001.png"], "val": ["00002.png"]}`. Lists must not overlap. Historical
-sample lists have not been recovered; the deterministic default is not claimed
-to be the original split. Choose the appropriate split before reporting results.
+## Preserved behavior
 
-## Objective and explicit implementation choices
+| Setting | MSRS | LLVIP | RoadScene candidate |
+| --- | --- | --- | --- |
+| Default epochs | 70 | 70 | 70 |
+| Batch size / accumulation | 2 / 8 | 1 / 16 | 2 / no accumulation |
+| AdamW nominal LR / decay | 1e-4 / 1e-4 | 1e-4 / 1e-4 | 1e-4 / 1e-4 |
+| LR scheduler | Original LambdaLR, stepped once per epoch | Same | Same |
+| Sampling / split | Filesystem order, first 90% train | Sort, take every tenth pair, first 90% train | Sort, first 90% train; validation list unused |
+| Training images | Resize and horizontal flip | Resize and horizontal flip | Original minimum-size resize, random crop and flip |
+| Text | Original numeric-ID lookup and fallback | Fixed default text, as in the existing trainer | Original JSON lookup and fallback |
+| External Judge coefficient | 0.1 | 0.5 | 0.02 |
+| Saved weights | Best fusion validation loss, epochs 0,5,... | Same; fixed validation text | Latest after every epoch |
 
-The objective is intensity + gradient + SSIM + color/edge + 0.1 * CLIP semantic
-loss + 0.2 * Judge cross-entropy (MSRS only). It follows equations 3-27 through
-3-37; historical scripts contain different objectives and weights.
+The fusion objective retains intensity weight 5, gradient weight 5, SSIM weight
+1, Cb/Cr color weight 8 and CLIP semantic weight 0.5. Intensity uses the original
+gray-based whole-pixel selector, gradients use grayscale, and IR SSIM compares
+grayscale images. Original SSIM padding, dynamic-range inference and numerical
+epsilon are retained. Auxiliary mask BCE (weight 0.2) is retained in all trainers.
+RoadScene also retains output clipping to [-1.02,1.02] and the 0.05 mean-square
+brightness penalty. Inputs retain the source training normalization [-1,1].
 
-- All training inputs and fusion outputs use [-1,1]. IR is expanded across RGB
-  channels when comparing source/output images. Pixel losses use mean reductions.
-- Both Sobel axes are summed. The color/edge term compares signed RGB Sobel
-  responses as in equation 3-33, rather than the historical Cb/Cr loss.
-- SSIM uses an 11x11 Gaussian window, sigma 1.5, data range 2, and replicated
-  borders. Images resize to 256x256; horizontal flips are shared by both images
-  and the semantic label. These discretization/augmentation details are explicit
-  reconstruction choices, not recovered historical settings.
-- CLIP and Judge parameters stay frozen and in evaluation mode. Gradients through
-  their image branches remain enabled so their losses can update the fusion model.
-- No auxiliary mask BCE or RoadScene brightness penalty is added. LLVIP prompts
-  are read from the provided training JSON rather than replaced with fixed text.
-- Learning rate is constant because Chapter 3 does not specify a scheduler.
-  Validation uses the same total objective at epochs 0,5,10,... and the last epoch.
-  This validation criterion and final check are reconstruction choices.
+Several existing behaviors need to remain visible, without silently correcting
+them as part of organization:
 
-## Outputs and verification limits
+- Judge forward passes are inside `torch.no_grad()`. Their losses contribute to
+  the reported total but do not backpropagate through the Judge to fusion images.
+- In `patent_dataset.py`, image flips are not applied to the mask. Missing masks
+  can become zero masks and failed image reads can advance to another sample.
+- LLVIP's training prompt mapping is empty even though its parser exposes a
+  prompt path. The trainer uses its fixed default prompt.
+- The original scheduler is parameterized by the number of batches but stepped
+  once per epoch. The final partial gradient-accumulation window still uses the
+  original fixed divisor. Neither behavior is corrected here.
+- RoadScene retains its permissive Judge loading and original handling of
+  mismatched image dimensions. The supplied training images have differing IR/VIS
+  dimensions; this release does not infer or add a registration/resize procedure.
+- Checkpoints contain the original model state payload, without optimizer or RNG
+  state for exact training resumption. No new validation objective or final-epoch
+  selection rule is added.
 
-Each new/empty run directory receives `config.json`, `split.json`, the selected
-`prompts.json`, per-component `loss.csv`, and `best_checkpoint.pth` /
-`latest_checkpoint.pth`. Checkpoints store model state, epoch, best validation
-loss and protocol metadata. They do not include optimizer/RNG state for exact
-training resumption. The original published checkpoint files are never replaced.
+These are descriptions of existing code, not endorsements of its correctness or
+proof of the paper's historical protocol. Full retraining and reproduction of the
+published metrics have not been established. Existing dataset-specific inference
+presets remain unchanged; their suitability for newly trained weights is not
+established by organizing the training code.
 
-Small synthetic checks cover synchronized labels, gradient flow, one CPU
-optimization/validation step with the real network, CLIP and MSRS Judge, and
-checkpoint loading. Loading checks also passed on four supplied MSRS pairs and
-four LLVIP pairs at 256x256. Those supplied directories are labeled as test data;
-no optimization was performed on them. Supplied RoadScene files include 221 pairs
-and complete prompts, but all pairs have different IR/VIS dimensions; the historical
-registration/preprocessing procedure is unknown. Four sampled pairs passed the
-256x256 loading check with `--resize-mismatched-pairs`; a disposable 64x64 CPU run
-then passed one optimization batch, one validation batch, a parameter-update
-check and strict checkpoint reloading. Judge supervision was disabled, as required
-for RoadScene by Chapter 3. This confirms program execution only, not geometric
-alignment, model quality or the historical training protocol.
-This is not validation of training on the actual training split or a full run.
+## Organization checks (2026-10-15)
 
-The existing `infer.py` remains for the original checkpoints and dataset-specific
-preprocessing. Do not assume its preserved presets apply to newly trained weights:
-in particular, original LLVIP inference uses [0,1] input and RoadScene applies
-percentile stretching. A matching inference protocol for the reconstructed
-training workflow has not been added in this draft. For direct tensor use, supply
-IR/VIS in [-1,1], the matching CLIP tokens, and use the first model output as RGB
-in [-1,1]. New-checkpoint inference and real-data training checks remain required
-before presenting this as a complete reproducible training release.
+All existing function/class syntax trees were compared after normalizing only
+documented path and module-location changes; training computation trees and
+non-path argument defaults matched. All release Python sources compiled, and all
+three dataset command-line help paths loaded successfully.
+
+On CPU with the actual local CLIP model, the source and organized `PatentLoss`
+produced exactly equal losses and fused-image gradients on a synthetic batch.
+Both dataset classes produced equal image, label and token tensors for training
+and validation, including their existing missing-mask and size-mismatch behavior.
+MSRS/LLVIP training-loop checks with small test models matched parameter updates,
+partial accumulation, Judge no-grad behavior and scheduler steps. RoadScene's
+training body was checked structurally; no full RoadScene training run was made.
+OpenCV image encoding matched byte-for-byte through the Unicode-path adapter.
+These checks establish organization consistency, not historical metric reproduction.

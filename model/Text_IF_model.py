@@ -110,8 +110,6 @@ class TransformerBlock(nn.Module):
 try:
     from model.modules_local import StructureAwareSemanticGatedAttention
 except ImportError:
-    import warnings
-    warnings.warn("Using the built-in SSGA fallback from the supplied server source (modules_local is unavailable).")
     # Fallback if specific module file is missing
     class StructureAwareSemanticGatedAttention(nn.Module):
         def __init__(self, dim, text_dim=512, num_heads=8):
@@ -201,7 +199,14 @@ class TextEncoder(nn.Module):
     def __init__(self, frozen=True):
         super(TextEncoder, self).__init__()
         local_path = os.environ.get("TDPFUSION_CLIP_PATH", "./clip_weights")
-        self.clip = CLIPTextModel.from_pretrained(local_path, local_files_only=True)
+        print(f"Loading local CLIP weights from: {local_path} ...")
+
+        try:
+            self.clip = CLIPTextModel.from_pretrained(local_path)
+            print("✅ Local CLIP model loaded successfully!")
+        except Exception as e:
+            print(f"⚠️ Local CLIP load failed: {e}. Trying online...")
+            self.clip = CLIPTextModel.from_pretrained("openai/clip-vit-base-patch32")
 
         if frozen:
             for param in self.clip.parameters():

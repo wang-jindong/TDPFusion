@@ -4,10 +4,11 @@ import json
 import numpy as np
 from PIL import Image
 import cv2
+from inference.common import write_cv2_image
 import torch
 import torch.nn.functional as F
 from torchvision.transforms import functional as TF
-from inference.common import load_tokenizer, write_cv2_image
+from transformers import CLIPTokenizer
 from tqdm import tqdm
 
 # 引入你的模型定义 (请确保路径正确)
@@ -103,10 +104,10 @@ def main(args):
     if not os.path.exists(args.save_path):
         os.makedirs(args.save_path)
 
-    device = torch.device(f"cuda:{args.gpu_id}" if torch.cuda.is_available() else "cpu")
+    device = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
 
     # 1. 加载 Tokenizer
-    tokenizer = load_tokenizer(args.clip_path)
+    tokenizer = CLIPTokenizer.from_pretrained(args.clip_path)
 
     # 2. 加载 Prompts
     prompts_dict = load_prompts(args.prompt_path)
@@ -159,5 +160,3 @@ def main(args):
             save_pic(fused, args.save_path, name)
 
     print(f"\n✨ 测试完成！结果路径: {args.save_path}")
-
-

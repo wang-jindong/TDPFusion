@@ -4,10 +4,11 @@ import json
 import numpy as np
 from PIL import Image
 import cv2
+from inference.common import write_cv2_image
 import torch
 import torch.nn.functional as F
 from torchvision.transforms import functional as TF
-from inference.common import load_tokenizer, write_cv2_image
+from transformers import CLIPTokenizer
 from tqdm import tqdm  # 建议安装 pip install tqdm
 
 # 引入你的模型定义
@@ -132,7 +133,10 @@ def main(args):
     device = torch.device(f"cuda:{args.gpu_id}" if torch.cuda.is_available() else "cpu")
 
     # 1. 加载 Tokenizer
-    tokenizer = load_tokenizer(args.clip_path)
+    try:
+        tokenizer = CLIPTokenizer.from_pretrained(args.clip_path)
+    except:
+        tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")
 
     # 2. 加载 Prompts (JSON)
     prompts_dict = load_prompts(args.prompt_path)
@@ -206,5 +210,3 @@ def main(args):
             save_mask(pred_mask, args.save_path, name)
 
     print(f"\nDone! Results saved to {args.save_path}")
-
-
